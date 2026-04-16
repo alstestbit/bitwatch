@@ -1,67 +1,72 @@
-"""Configuration loading and validation for bitwatch."""
+"""Configuration loading for bitwatch."""
+
+from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
-from typing import List, Optional
-
-
-@dataclass
-class WatchTarget:
-    path: str
-    recursive: bool = False
-    patterns: List[str] = field(default_factory=lambda: ["*"])
+from pathlib import Path
+from typing import Dict, List, Optional
 
 
 @dataclass
 class WebhookConfig:
     url: str
     method: str = "POST"
-    headers: dict = field(default_factory=dict)
-    secret: Optional[str] = None
+    headers: Dict[str, str] = field(default_factory=dict)
+    events: Optional[List[str]] = None  # None = all events
+
+
+@dataclass
+class WatchTarget:
+    path: str
+    recursive: bool = False
+    include_patterns: List[str] = field(default_factory=list)
+    exclude_patterns: List[str] = field(default_factory=list)
+    event_types: Optional[List[str]] = None
+    webhooks: List[WebhookConfig] = field(default_factory=list)
 
 
 @dataclass
 class BitwatchConfig:
     targets: List[WatchTarget]
-    webhook: Optional[WebhookConfig]
-    debounce_seconds: float = 1.0
-    ignore_patterns: List[str] = field(default_factory=list)
+    poll_interval: float = 1.0
+    log_level: str = "INFO"
+
+
+def _parse_webhook(raw: dict) -> WebhookConfig:
+    return WebhookConfig(
+        url=raw["url"],
+        method=raw.get("method", "POST"),
+        headers=raw.get("headers", {}),
+        events=raw.get("events"),
+    )
+
+
+def _parse_target(raw: dict) -> WatchTarget:
+    return WatchTarget(
+        path=raw["path"],
+        recursive=raw.get("recursive", False),
+        include_patterns=raw.get("include_patterns", []),
+        exclude_patterns=raw.get("exclude_patterns", []),
+        event_types=raw.get("event_types"),
+        webhooks=[_parse_webhook(w) for w in raw.get("webhooks", [])],
+    )
 
 
 def load_config(config_path: str) -> BitwatchConfig:
-    """Load and validate configuration from a JSON file."""
-    if not os.path.exists(config_path):
+    path = Path(config_path)
+    if not path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
-    with open(config_path, "r") as f:
-        raw = json.load(f)
+    with path.open() as fh:
+        data = json.load(fh)
 
-    targets = [
-        WatchTarget(
-            path=t["path"],
-            recursive=t.get("recursive", False),
-            patterns=t.get("patterns", ["*"]),
-        )
-        for t in raw.get("targets", [])
-    ]
-
+    targets = [_parse_target(t) for t in data.get("targets", [])]
     if not targets:
-        raise ValueError("At least one watch target must be specified.")
-
-    webhook = None
-    if "webhook" in raw:
-        w = raw["webhook"]
-        webhook = WebhookConfig(
-            url=w["url"],
-            method=w.get("method", "POST"),
-            headers=w.get("headers", {}),
-            secret=w.get("secret"),
-        )
+        raise ValueError("Configuration must define at least one target.")
 
     return BitwatchConfig(
         targets=targets,
-        webhook=webhook,
-        debounce_seconds=raw.get("debounce_seconds", 1.0),
-        ignore_patterns=raw.get("ignore_patterns", []),
+        poll_interval=data.get("poll_interval", 1.0),
+        log_level=data.get("log_level", "INFO"),
     )
