@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.pytest.ini_options]
+testpaths = ["bitwatch/tests"]
+addopts = "--tb=short -q"
+
+[tool.coverage.run]
+source = ["bitwatch"]
+omit = ["bitwatch/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
