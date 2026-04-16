@@ -1,0 +1,30 @@
+{
+  "targets": [
+    {
+      "path": "./src",
+      "recursive": true,
+      "patterns": ["*.py", "*.js"]
+    },
+    {
+      "path": "./config",
+      "recursive": false,
+      "patterns": ["*.yaml", "*.json"]
+    }
+  ],
+  "webhook": {
+    "url": "https://hooks.example.com/bitwatch",
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Source": "bitwatch"
+    },
+    "secret": "your-secret-token"
+  },
+  "debounce_seconds": 1.5,
+  "ignore_patterns": [
+    ".git",
+    "__pycache__",
+    "*.pyc",
+    "node_modules"
+  ]
+}
