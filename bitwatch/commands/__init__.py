@@ -1,1 +1,1 @@
-"""bitwatch CLI sub-commands package."""
+"""bitwatch commands package."""
