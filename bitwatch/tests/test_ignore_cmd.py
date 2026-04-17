@@ -70,3 +70,13 @@ def test_roundtrip_preserves_order(tmp_path):
     patterns = ["*.log", "*.tmp", "build/"]
     _save_patterns(ignore_file, patterns)
     assert _load_patterns(ignore_file) == patterns
+
+
+def test_add_multiple_patterns(tmp_path, capsys):
+    """Adding several distinct patterns should accumulate them all."""
+    ignore_file = tmp_path / DEFAULT_IGNORE_FILE
+    for pattern in ["*.log", "*.tmp", "dist/"]:
+        rc = run(_args(tmp_path, "add", pattern))
+        assert rc == 0
+    patterns = _load_patterns(ignore_file)
+    assert patterns == ["*.log", "*.tmp", "dist/"]
