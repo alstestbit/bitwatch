@@ -53,6 +53,19 @@ def test_chain_digest_changes_on_tamper():
     assert h1 != h2
 
 
+def test_chain_digest_per_entry_length():
+    """Each per-entry hash should be a 64-character hex string."""
+    entries = [
+        {"timestamp": "2024-01-01T00:00:00", "event": "created", "path": "/a"},
+        {"timestamp": "2024-01-01T00:01:00", "event": "modified", "path": "/a"},
+    ]
+    _, per = _chain_digest(entries)
+    assert len(per) == 2
+    for h in per:
+        assert len(h) == 64
+        assert all(c in "0123456789abcdef" for c in h)
+
+
 def test_run_shows_chain(hist_file: Path, capsys):
     _write(hist_file, [
         {"timestamp": "2024-01-01T00:00:00", "event": "created", "path": "/tmp/a"},
