@@ -43,3 +43,8 @@ def diff_snapshots(
     deleted = sorted(old_keys - new_keys)
     modified = sorted(k for k in old_keys & new_keys if old[k] != new[k])
     return {"created": created, "modified": modified, "deleted": deleted}
+
+
+def is_changed(diff: Dict[str, list[str]]) -> bool:
+    """Return True if a diff produced by diff_snapshots contains any changes."""
+    return any(diff.get(key) for key in ("created", "modified", "deleted"))
