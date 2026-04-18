@@ -34,6 +34,14 @@ def _save(path: str, data: dict) -> None:
         json.dump(data, f, indent=2)
 
 
+def _require_args(args: Namespace, *names: str) -> str | None:
+    """Return an error message if any of the named args are missing, else None."""
+    missing = [f"--{n.replace('_', '-')}" for n in names if not getattr(args, n, None)]
+    if missing:
+        return f"Error: {', '.join(missing)} {'are' if len(missing) > 1 else 'is'} required for '{args.action}'."
+    return None
+
+
 def run(args: Namespace) -> int:
     pins = _load(args.pins_file)
 
@@ -46,8 +54,9 @@ def run(args: Namespace) -> int:
         return 0
 
     if args.action == "add":
-        if not args.name or not args.snapshot:
-            print("Error: --name and --snapshot are required for 'add'.")
+        err = _require_args(args, "name", "snapshot")
+        if err:
+            print(err)
             return 1
         if not os.path.exists(args.snapshot):
             print(f"Error: snapshot file not found: {args.snapshot}")
@@ -58,8 +67,9 @@ def run(args: Namespace) -> int:
         return 0
 
     if args.action == "remove":
-        if not args.name:
-            print("Error: --name is required for 'remove'.")
+        err = _require_args(args, "name")
+        if err:
+            print(err)
             return 1
         if args.name not in pins:
             print(f"Pin '{args.name}' not found.")
