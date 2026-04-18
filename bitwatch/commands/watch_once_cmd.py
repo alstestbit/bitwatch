@@ -1,70 +1,59 @@
-"""watch-once: snapshot, diff against previous, notify on changes."""
+"""watch-once: take a snapshot, compare to previous, print changes."""
 from __future__ import annotations
 
 import argparse
-import logging
+import sys
+from pathlib import Path
 
 from bitwatch.config import BitwatchConfig
 from bitwatch.snapshot import save_snapshot, load_snapshot, diff_snapshots
 from bitwatch.watcher import snapshot_path
-from bitwatch.notifier import Notifier
-from bitwatch.alert import load_rules
-
-log = logging.getLogger(__name__)
 
 
-def add_subparser(sub: argparse._SubParsersAction) -> None:  # noqa: SLF001
-    p = sub.add_parser(
-        "watch-once",
-        help="Take a snapshot, diff against the previous one, and fire alerts.",
-    )
-    p.add_argument("--config", default="bitwatch.json", help="Config file path")
+def add_subparser(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("watch-once", help="snapshot targets and report changes")
+    p.add_argument("--config", default="bitwatch.json")
     p.add_argument(
-        "--dry-run",
+        "--snap-dir",
+        default=".bitwatch/snapshots",
+        help="directory to store snapshots",
+    )
+    p.add_argument(
+        "--save",
         action="store_true",
-        help="Print changes without sending webhooks",
+        help="persist the new snapshot after diffing",
     )
     p.set_defaults(func=run)
 
 
 def run(args: argparse.Namespace) -> int:
-    try:
-        cfg = BitwatchConfig.load(args.config)
-    except FileNotFoundError:
-        print(f"Config file not found: {args.config}")
+    config_path = Path(args.config)
+    if not config_path.exists():
+        print(f"[error] config not found: {config_path}", file=sys.stderr)
         return 1
 
-    rules = load_rules()
-    changed_any = False
+    cfg = BitwatchConfig.load(config_path)
+    snap_dir = Path(args.snap_dir)
+    snap_dir.mkdir(parents=True, exist_ok=True)
 
+    any_changes = False
     for target in cfg.targets:
-        path = target.path
-        snap_file = snapshot_path(path)
+        path = Path(target.path)
+        snap_file = snap_dir / f"{path.name}.json"
 
-        old = load_snapshot(snap_file)
-        new = snapshot_path(path)  # reuse helper for consistency
-        # Actually take a live snapshot via watcher helper
-        from bitwatch.watcher import FileWatcher
-        watcher = FileWatcher(target)
-        current = watcher.snapshot()
-        diffs = diff_snapshots(old, current)
+        previous = load_snapshot(snap_file)
+        current = snapshot_path(path)
 
-        if not diffs:
-            log.debug("No changes for %s", path)
+        changes = diff_snapshots(previous, current)
+        if changes:
+            any_changes = True
+            print(f"[{target.name or target.path}]")
+            for ch in changes:
+                print(f"  {ch['status']:10s}  {ch['path']}")
+        else:
+            print(f"[{target.name or target.path}] no changes")
+
+        if args.save:
             save_snapshot(current, snap_file)
-            continue
 
-        changed_any = True
-        for entry in diffs:
-            event_type = entry["event"]
-            file_path = entry["path"]
-            print(f"  [{event_type.upper()}] {file_path}")
-            if not args.dry_run:
-                notifier = Notifier(target.webhooks, rules)
-                notifier.notify(event_type, file_path)
-
-        save_snapshot(current, snap_file)
-
-    if not changed_any:
-        print("No changes detected.")
-    return 0
+    return 0 if not any_changes else 2
