@@ -17,6 +17,7 @@ def hist_file(tmp_path):
 
 
 def _args(hist_file, index, note):
+    """Build a minimal args namespace for the annotate command."""
     class A:
         pass
     a = A()
@@ -38,6 +39,15 @@ def test_annotate_persists(hist_file):
     lines = hist_file.read_text().splitlines()
     entry = json.loads(lines[1])
     assert entry["note"] == "check this"
+
+
+def test_annotate_overwrites_existing_note(hist_file):
+    """Annotating the same entry twice should replace the previous note."""
+    run(_args(hist_file, 0, "first note"))
+    run(_args(hist_file, 0, "second note"))
+    lines = hist_file.read_text().splitlines()
+    entry = json.loads(lines[0])
+    assert entry["note"] == "second note"
 
 
 def test_annotate_out_of_range(hist_file, capsys):
